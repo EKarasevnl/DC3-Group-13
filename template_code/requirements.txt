@@ -1,0 +1,6 @@
+bertopic == 0.15.0
+pandas == 1.4.4
+geopandas == 0.13.2
+matplotlib == 3.7.2
+seaborn == 0.12.2
+statsmodels == 0.14.0
