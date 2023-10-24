@@ -184,7 +184,7 @@ def prepare_dataset(data_dir = "data/", features = "Standard"):
 
         prepare_articles_features(data_dir, features) # generate articles_topics_template.csv
 
-        news_df = pd.read_csv(data_dir + "df_news_districted.csv") # Read news data into DataFrame
+        news_df = pd.read_csv(data_dir + "df_news_districted_improved.csv") # Read news data into DataFrame
 
         # Create date column
         news_df["date"] = pd.to_datetime(

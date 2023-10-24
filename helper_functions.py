@@ -2,6 +2,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import confusion_matrix
+from tqdm.notebook import tqdm
+import numpy as np
 
 
 def get_relevant_topics(bertopic_model, keywords, top_n):
@@ -135,3 +137,91 @@ def create_news_features(columns, news_df):
         col = col.shift(3)
         cols.append(col)
     return pd.concat(cols, axis=1)
+
+def articles_per_ipc(y, data_dir = "data/"):
+
+    news_df = pd.read_csv(data_dir + "df_news_districted.csv") # Read news data into DataFrame
+
+    # Create date column
+    news_df["date"] = pd.to_datetime(
+        pd.to_datetime(news_df["date"], format="%Y-%m-%d").dt.strftime("%Y-%m"),
+        format="%Y-%m",
+    )
+    news_df = news_df.drop(columns=['Unnamed: 0'])
+    combined = ( pd.DataFrame(y['ipc'])
+    .join(news_df.groupby(["date"])["hunger"].mean())
+    .join(news_df.groupby(["date"])["refugees"].mean())
+    .join(news_df.groupby(["date"])["Diplomacy"].mean())
+    .join(news_df.groupby(["date"])["Crisis"].mean())
+    .join(news_df.groupby(["date"])["Security"].mean())
+    .join(news_df.groupby(["date"])["Education"].mean())
+    .join(news_df.groupby(["date"])["International"].mean())
+    .join(news_df.groupby(["date"])["Media"].mean())
+    .join(news_df.groupby(["date"])["Leadership"].mean()))
+
+    # Plot the mean share of articles per ipc value for the different topics
+    combined.groupby("ipc")[combined.columns[1:]].mean().plot(
+        kind="bar", ylabel="Share of total articles", title = "Mean Share of Articles per IPC"
+    );
+
+def articles_per_region(data_dir = "data/"):
+
+    df_news = pd.read_csv("data/articles_topics_original.csv", parse_dates=["date"])
+    df_food_crisis = pd.read_csv("data/food_crises_cleaned.csv", parse_dates=['date'])
+
+    districts = list(region for region in df_food_crisis["district"].unique())
+    for i in range(len(districts)):
+        districts[i] = districts[i].replace("Center", "").replace("South", "").replace("North", "").replace("East", "").replace("West", "").strip()
+    districts = list(dict.fromkeys(districts))
+    df_news = df_news.drop(columns=['summary', 'lat', 'lng'])
+    df_news['district'] = np.nan
+    df_news['district'] = df_news['district'].astype('object')
+    df_news_districted = pd.DataFrame(columns=df_news.columns)
+    # Initialize an empty list to collect rows
+    matched_rows = []
+
+    # Iterate through the rows of df_news
+    for i in tqdm(range(len(df_news)), desc="Preparing data for the Pie Chart"):
+        text = df_news.iloc[i, 1].lower()
+        matched = False
+
+        for district in districts:
+            if (district.lower() in text) or (text in district.lower()):
+                matched_row = df_news.iloc[i].copy()  # Create a copy of the matching row
+                matched_row.iloc[-1] = district
+                matched_rows.append(matched_row)
+                matched = True
+
+        if not matched:
+            no_match_row = df_news.iloc[i].copy()  # Create a copy of the original row
+            no_match_row.iloc[-1] = "Not assigned"
+            matched_rows.append(no_match_row)
+
+
+
+    df_news_districted = pd.DataFrame(matched_rows, columns = df_news.columns).reset_index(drop=True)
+    monthly_avg_art = df_news_districted[['district']].groupby(['district']).size().reset_index(name='count').sort_values(by='count', ascending=False).iloc[0:10,]
+
+    # Set the threshold for grouping into "other"
+    threshold = sum(monthly_avg_art['count']/ 100*2.3)  # Less than 2% will be grouped into "other"
+
+    # Identify the groups to group into "other"
+    small_groups = monthly_avg_art[monthly_avg_art['count'] < threshold]
+    small_groups_total = small_groups['count'].sum()
+
+    # Combine small groups into "other"
+    monthly_avg_art.loc[monthly_avg_art['count'] < threshold, 'district'] = 'Other regions'
+    # monthly_avg_art.loc[monthly_avg_art['district'] == 'Other', 'count'] += small_groups_total
+
+    monthly_avg_art = monthly_avg_art.groupby(['district']).sum()
+
+    # Create a pie chart using Seaborn
+    plt.figure(figsize=(6, 6))
+    sns.set_palette('Set3')
+
+
+    # Plot the pie chart
+    plt.pie(monthly_avg_art['count'], labels=monthly_avg_art.index, autopct='%1.1f%%', startangle=140, textprops={'fontsize': 12})
+    plt.title('Distribution of News Articles', fontsize=16, fontweight='bold')
+
+    plt.show()

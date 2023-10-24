@@ -14,7 +14,9 @@ from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
 from typing import List
 import seaborn as sns
+from torch.utils.data import DataLoader, TensorDataset, ConcatDataset
 from tqdm.notebook import tqdm_notebook
+from sklearn.metrics import confusion_matrix
 
 
 from helper_functions import plot_ConfusionMatrix
@@ -308,5 +310,64 @@ def model_eval(X, y, model_type = "OLS"):
         
         # Show the plot
         plt.show()
+
+        # Lists to store true labels and predicted labels
+        true_labels = []
+        predicted_labels = []
+        predicted_probabilities = []  # Added for MSE and MAE
+
+        combined_dataset = ConcatDataset([
+            TensorDataset(X_train_model, y_train_model),
+            TensorDataset(X_test_model, y_test_model)
+        ])
+
+        combined_loader = DataLoader(combined_dataset, batch_size=64, shuffle=False)
+
+        with torch.no_grad():
+            for batch in test_loader:
+                inputs, labels = batch
+                outputs = model(inputs)
+                # Apply softmax and get predicted classes using argmax
+                probabilities = torch.softmax(outputs, dim=1)
+                predicted_classes = torch.argmax(probabilities, dim=1)
+                true_labels.extend(labels.numpy())
+                predicted_labels.extend(predicted_classes.numpy())
+
+                predicted_probabilities.extend(probabilities.numpy())  # Added for MSE and MAE
+
+        # Calculate confusion matrix
+        confusion = confusion_matrix(true_labels, predicted_labels)
+        confusion = confusion[:num_classes - 1, :num_classes - 1]
+
+        # Calculate accuracy
+        accuracy = accuracy_score(true_labels, predicted_labels)
+
+        # Calculate F1 score
+        f1 = f1_score(true_labels, predicted_labels, average='weighted')
+
+        # Create a confusion matrix heatmap
+        plt.figure(figsize=(8, 6))
+        sns.set(font_scale=1.2)  # Adjust font size if needed
+        sns.heatmap(confusion, annot=True, fmt='d', cmap='Blues', cbar=False, square=True,
+                    xticklabels=[str(i+1) for i in range(num_classes - 1)],
+                    yticklabels=[str(i+1) for i in range(num_classes - 1)])
+        plt.xlabel('Predicted IPC scores')
+        plt.ylabel('True IPC scores')
+        plt.title('Confusion Matrix - NN model')
+        plt.show()
+
+
+        # Convert true_labels to one-hot encoded format
+        num_classes = 5  # Assuming you have 5 classes
+        true_labels_onehot = np.zeros((len(true_labels), num_classes))
+        true_labels_onehot[np.arange(len(true_labels)), true_labels] = 1
+
+        mae = np.mean(np.abs(np.array(predicted_labels) - [i[0] for i in true_labels]))
+
+        print("Mean Absolute Error (MAE):", mae)
+        print("Accuracy:", accuracy)
+        print("F1 Score:", f1)
+
+        return model, true_labels, predicted_probabilities, predicted_labels
 
     return model
