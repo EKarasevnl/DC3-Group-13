@@ -162,6 +162,9 @@ def prepare_dataset(data_dir = "data/", features = "Standard"):
         df = df.iloc[df['ipc'].notnull().argmax():].copy() # Drop rows until first notna value in ipc column
         df = df.join(news_features, how="left") # Join df with created news features
 
+        for i in ["hunger", 'refugees', 'conflict', 'humanitarian']:
+            df[i] = df[i].fillna(0)
+
         X = df.iloc[:, -10:] # Define explanatory variables
         X = sm.add_constant(X) # Add constant column of 1s for intercept
         y = df[["ipc"]] # Define target data

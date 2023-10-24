@@ -4,6 +4,18 @@ from statsmodels.regression.linear_model import OLS
 from sklearn import linear_model
 from sklearn.metrics import accuracy_score, f1_score, r2_score
 import matplotlib.pyplot as plt
+import xgboost as xgb
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from torch.utils.data import DataLoader, TensorDataset
+from typing import List
+import seaborn as sns
+from tqdm.notebook import tqdm_notebook
+
 
 from helper_functions import plot_ConfusionMatrix
 
@@ -119,4 +131,182 @@ def model_eval(X, y, model_type = "OLS"):
         print(f"Mean R2: {np.mean(r2_values):.2f}") # Print R2
         print(f"Mean Accuracy: {100*np.mean(accuracy_values):.2f}%") # Print Mean Accuracy
         print(f"Mean Weighted F1: {np.mean(f1_values):.3f}") # Print Mean Weighted F1
+    
+    elif model_type == "XGboost":
+
+        cv = TimeSeriesSplit(n_splits=5) # Define TimeSeriesSplit with 5 splits
+        # Initinalize empty lists to score scores
+        mae_values = list()
+        r2_values = list()
+        f1_values = list()
+        accuracy_values = list()
+
+        for train_index, val_index in cv.split(X): # Loop over the different training-test splits
+
+            # Define X and y data
+            X_train, X_test = X.iloc[train_index], X.iloc[val_index]
+            y_train, y_val = y.iloc[train_index], y.iloc[val_index]
+
+            # If X_train doesn't contain any news features (this happens for earlier dates) we drop news columns from both X_train and X_test
+            X_train = X_train.dropna(axis=1, how='all').copy()
+            X_test = X_test[X_train.columns]
+
+            # Create a DMatrix for XGBoost (XGBoost uses its own data structure)
+            dtrain = xgb.DMatrix(X_train, label=y_train)
+
+            # Specify the XGBoost parameters (you can adjust these as needed)
+            params = {
+                "objective": "reg:squarederror",  # Regression task
+                "max_depth": 4,  # Maximum depth of the tree
+                "eta": 0.02,  # Learning rate
+                "subsample": 0.7,  # Fraction of data to randomly sample for each tree
+                "colsample_bytree": 0.7,  # Fraction of features to randomly sample for each tree
+            }
+
+            # Train the XGBoost model
+            num_round = 100  # Number of boosting rounds (you can adjust this)
+            model = xgb.train(params, dtrain, num_round)
+
+            # Create a DMatrix for X_test
+            dtest = xgb.DMatrix(X_test)
+
+            # Make predictions on the test data
+            y_pred = np.round(model.predict(dtest))
+
+            # Append results to respective lists
+            mae_values.append((y_pred - y_val['ipc']).abs().mean())
+
+            accuracy_values.append(accuracy_score(y_pred=y_pred,
+                            y_true=y_val['ipc']))
+
+            f1_values.append(f1_score(y_pred=y_pred,
+                            y_true=y_val['ipc'], average='weighted'))
+
+            plot_ConfusionMatrix(predicted_labels = y_pred, true_labels = y_val['ipc']) # Plot confusion matrix
+            
+        print(f"Mean MAE: {np.mean(mae_values):.3f}") # Print MAE
+        print(f"Mean R2: {np.mean(r2_values):.3f}") # Print R2
+        print(f"Mean accuracy: {100*np.mean(accuracy_values):.2f}%") # Print R2
+        print(f"Mean weighted f1: {np.mean(f1_values):.3f}") # Print R2
+
+    elif model_type == "NN":
+
+        if "ipc_lag_3" in X.columns:
+            y = y[X['ipc_lag_3'].notnull()]
+            X = X[X['ipc_lag_3'].notnull()]
+        else:
+            y = y[X['ipc_lag_1'].notnull()]
+            X = X[X['ipc_lag_1'].notnull()]     
+
+        X_train, X_test, y_train, y_test = train_test_split(X,y, test_size=0.2, random_state=69)
+
+        # Normalize your data (optional, but recommended)
+        scaler = StandardScaler()
+        X_train_model = scaler.fit_transform(X_train.values)
+        X_test_model = scaler.transform(X_test.values)
+
+        # Convert data to PyTorch tensors
+        X_train_model = torch.FloatTensor(X_train_model)
+        X_test_model = torch.FloatTensor(X_test_model)
+        y_train_model = torch.LongTensor(y_train.values)
+        y_test_model = torch.LongTensor(y_test.values)
+
+        # Subtract 1 from the target labels to make them range from 0 to 4
+        y_train_model = torch.LongTensor([label - 1 for label in y_train_model]).unsqueeze(dim=1)
+        y_test_model = torch.LongTensor([label - 1 for label in y_test_model]).unsqueeze(dim=1)
+
+        # Create DataLoader for training and testing
+        train_dataset = TensorDataset(X_train_model, y_train_model)
+        train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+        test_dataset = TensorDataset(X_test_model, y_test_model)
+        test_loader = DataLoader(test_dataset, batch_size=64)
+
+        
+        class HungerModel(nn.Module):
+            def __init__(self, input_size, num_classes):
+                super(HungerModel, self).__init__()
+                self.linear_layer_1 = nn.Linear(input_size, 64)
+                self.relu = nn.ReLU()
+                self.linear_layer_2 = nn.Linear(64, num_classes)
+
+            def forward(self, x):
+                x = self.linear_layer_1(x)
+                x = self.relu(x)
+                x = self.linear_layer_2(x)
+                return x
+
+        # Define class weights based on ordinal distance
+        class_weights = torch.tensor([1.0, 1.0, 2.0, 2.0, 2.0])
+
+        input_size = X_train.shape[1]
+        num_classes = 5
+
+        model = HungerModel(input_size, num_classes)
+        criterion = nn.CrossEntropyLoss(weight=class_weights)
+        optimizer = optim.Adam(model.parameters(), lr=0.0001)
+
+
+        num_epochs = 1200
+        best_loss = 10000
+        mean_losses_train: List[torch.Tensor] = []
+        mean_losses_test: List[torch.Tensor] = []
+
+
+        for epoch in tqdm_notebook(range(num_epochs), desc="Model Training"):
+            model.train()
+
+            if best_loss == 10000:
+                torch.save(model.state_dict(), 'best_model.pth')
+
+            curr_losses_train: List[torch.Tensor] = []
+            curr_losses_test: List[torch.Tensor] = []
+            for batch in train_loader:
+                inputs, labels = batch
+                optimizer.zero_grad()
+                outputs = model(inputs)
+                labels = labels.squeeze()
+                train_loss = criterion(outputs, labels)
+                curr_losses_train.append(train_loss.item())
+                train_loss.backward()
+                optimizer.step()
+            mean_losses_train.append(sum(curr_losses_train) / len(curr_losses_train))
+
+            with torch.no_grad():
+                for batch in test_loader:
+                    inputs, labels = batch
+                    outputs = model(inputs)
+                    labels = labels.squeeze()
+                    test_loss = criterion(outputs, labels)
+                    curr_losses_test.append(test_loss.item())
+                mean_losses_test.append(sum(curr_losses_test) / len(curr_losses_test))
+            # Print training loss for each epoch
+            
+
+
+            if mean_losses_test[-1] < best_loss:
+                best_loss = mean_losses_test[-1]
+                # Save the model checkpoint
+                torch.save(model.state_dict(), 'best_model.pth')
+                
+        model = HungerModel(input_size, num_classes)
+        model.load_state_dict(torch.load('best_model.pth'))
+        model.eval()  # Set the model to evaluation model
+
+        sns.lineplot(x=range(len(mean_losses_train)), y=mean_losses_train, label="train")
+        sns.lineplot(x=range(len(mean_losses_test)), y=mean_losses_test, label="test")
+
+        # Set plot labels and title
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.title("Train and Test Loss")
+
+        # Add a legend
+        plt.legend()
+
+        min_test_loss_epoch = mean_losses_test.index(min(mean_losses_test))
+        plt.axvline(x=min_test_loss_epoch, color='green', linestyle='--', label="Lowest Test Loss")
+        
+        # Show the plot
+        plt.show()
+
     return model
