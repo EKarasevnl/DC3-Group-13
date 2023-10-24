@@ -1,13 +1,8 @@
-from bertopic import BERTopic
 import pandas as pd
-import geopandas as gpd
-import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.model_selection import TimeSeriesSplit
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import confusion_matrix
 
-# We create a function to calculate a list of the top n topics related to (a) given keyword(s)
 
 def get_relevant_topics(bertopic_model, keywords, top_n):
     '''
@@ -97,13 +92,11 @@ def create_lag_df(df, columns, lag, difference=False, rolling=None, dropna=False
         df[f"{column}_lag_{lag}"] = col.shift(lag).stack()
     return df
 
-def plot_ConfusionMatrix(prediction, true, binary=False):
+
+def plot_ConfusionMatrix(predicted_labels, true_labels, num_classes = 5, binary=False):
     '''
     Function to plot a confusion matrix as a heatmap from a prediction and true values.
     
-    Here we define a function that plots a confusion matrix given a prediction
-    and the true values, it can be used both for binary and categorical variables.
-
     Inputs:
         prediction - The predicted values
         true - the true values
@@ -115,22 +108,30 @@ def plot_ConfusionMatrix(prediction, true, binary=False):
         Also plots the confusion matrix as heatmap in an interactive environment such as Jupyter Notebook.
     '''
     
-    y_pred = prediction
+    predicted_labels = predicted_labels[true_labels.notnull()]
+    true_labels = true_labels[true_labels.notnull()]
     
-    if not binary:
-        # Round prediction to nearest integer (i.e. the nearest phase)
-        y_pred = y_pred.round() 
-        y_pred = np.minimum(y_pred, 5) # Cap maximum prediction at 5 (maximum phase)
-        y_pred = np.maximum(y_pred, 1) # Cap minimum prediction at 1 (minimum phase)
-
-    # Initialize confusion matrix
-    confusion_matrix = pd.crosstab(
-        true, y_pred, rownames=["Actual"], colnames=["Predicted"]
-    )
-
-    # Plot confusion matrix as heatmap
-    sns.heatmap(confusion_matrix, annot=True, fmt="g")
+    # Calculate confusion matrix
+    confusion = confusion_matrix(true_labels, predicted_labels)
+    confusion = confusion[:num_classes - 1, :num_classes - 1]
+    
+    # Create a confusion matrix heatmap
+    plt.figure(figsize=(8, 6))
+    sns.set(font_scale=1.2)  # Adjust font size if needed
+    sns.heatmap(confusion, annot=True, fmt='d', cmap='Blues', cbar=False, square=True,
+                xticklabels=[str(i+1) for i in range(num_classes - 1)],
+                yticklabels=[str(i+1) for i in range(num_classes - 1)])
+    plt.xlabel('Predicted IPC scores')
+    plt.ylabel('True IPC scores')
+    plt.title('Confusion Matrix - NN model')
     plt.show()
-    plt.clf()
-    
-    return confusion_matrix
+
+def create_news_features(columns, news_df):
+    cols = []
+    for column in columns:
+        col = news_df.groupby(["date"])[column].mean()
+        col = col.fillna(0)
+        col = col.rolling(3).mean()
+        col = col.shift(3)
+        cols.append(col)
+    return pd.concat(cols, axis=1)
