@@ -74,7 +74,7 @@ def model_eval(X, y, model_type = "OLS"):
             f1_values.append(f1_score(y_pred=y_pred,
                             y_true=y_val['ipc'], average='weighted'))
 
-            plot_ConfusionMatrix(predicted_labels = y_pred, true_labels = y_val['ipc']) # Plot confusion matrix
+            plot_ConfusionMatrix(predicted_labels = y_pred, true_labels = y_val['ipc'], cm_title = "Template model") # Plot confusion matrix
             
         print(f"Mean MAE: {np.mean(mae_values):.2f}") # Print MAE
         print(f"Mean R2: {np.mean(r2_values):.2f}") # Print R2
@@ -127,7 +127,7 @@ def model_eval(X, y, model_type = "OLS"):
             f1_values.append(f1_score(y_pred=y_pred,
                             y_true=y_val['ipc'], average='weighted'))
 
-            plot_ConfusionMatrix(predicted_labels = y_pred, true_labels = y_val['ipc']) # Plot confusion matrix
+            plot_ConfusionMatrix(predicted_labels = y_pred, true_labels = y_val['ipc'], cm_title = "Ridge Regression") # Plot confusion matrix
             
         print(f"Mean MAE: {np.mean(mae_values):.2f}") # Print MAE
         print(f"Mean R2: {np.mean(r2_values):.2f}") # Print R2
@@ -139,7 +139,6 @@ def model_eval(X, y, model_type = "OLS"):
         cv = TimeSeriesSplit(n_splits=5) # Define TimeSeriesSplit with 5 splits
         # Initinalize empty lists to score scores
         mae_values = list()
-        r2_values = list()
         f1_values = list()
         accuracy_values = list()
 
@@ -184,10 +183,9 @@ def model_eval(X, y, model_type = "OLS"):
             f1_values.append(f1_score(y_pred=y_pred,
                             y_true=y_val['ipc'], average='weighted'))
 
-            plot_ConfusionMatrix(predicted_labels = y_pred, true_labels = y_val['ipc']) # Plot confusion matrix
+            plot_ConfusionMatrix(predicted_labels = y_pred, true_labels = y_val['ipc'], cm_title = "XGboost") # Plot confusion matrix
             
         print(f"Mean MAE: {np.mean(mae_values):.3f}") # Print MAE
-        print(f"Mean R2: {np.mean(r2_values):.3f}") # Print R2
         print(f"Mean accuracy: {100*np.mean(accuracy_values):.2f}%") # Print R2
         print(f"Mean weighted f1: {np.mean(f1_values):.3f}") # Print R2
 
@@ -335,27 +333,13 @@ def model_eval(X, y, model_type = "OLS"):
 
                 predicted_probabilities.extend(probabilities.numpy())  # Added for MSE and MAE
 
-        # Calculate confusion matrix
-        confusion = confusion_matrix(true_labels, predicted_labels)
-        confusion = confusion[:num_classes - 1, :num_classes - 1]
-
         # Calculate accuracy
         accuracy = accuracy_score(true_labels, predicted_labels)
 
         # Calculate F1 score
         f1 = f1_score(true_labels, predicted_labels, average='weighted')
 
-        # Create a confusion matrix heatmap
-        plt.figure(figsize=(8, 6))
-        sns.set(font_scale=1.2)  # Adjust font size if needed
-        sns.heatmap(confusion, annot=True, fmt='d', cmap='Blues', cbar=False, square=True,
-                    xticklabels=[str(i+1) for i in range(num_classes - 1)],
-                    yticklabels=[str(i+1) for i in range(num_classes - 1)])
-        plt.xlabel('Predicted IPC scores')
-        plt.ylabel('True IPC scores')
-        plt.title('Confusion Matrix - NN model')
-        plt.show()
-
+        plot_ConfusionMatrix(predicted_labels = predicted_labels, true_labels = true_labels, cm_title = "NN Model") # Plot confusion matrix
 
         # Convert true_labels to one-hot encoded format
         num_classes = 5  # Assuming you have 5 classes

@@ -1,5 +1,5 @@
 /__pycache__
-data/articles_topics.csv
+data/articles_topics_improved.csv
+data/articles_topics_template.csv
 southsudan_model
-*.png
-/data/*.csv
+data/df_news_districted_improved.csv

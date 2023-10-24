@@ -95,7 +95,7 @@ def create_lag_df(df, columns, lag, difference=False, rolling=None, dropna=False
     return df
 
 
-def plot_ConfusionMatrix(predicted_labels, true_labels, num_classes = 5, binary=False):
+def plot_ConfusionMatrix(predicted_labels, true_labels, cm_title, num_classes = 5, binary=False):
     '''
     Function to plot a confusion matrix as a heatmap from a prediction and true values.
     
@@ -109,9 +109,9 @@ def plot_ConfusionMatrix(predicted_labels, true_labels, num_classes = 5, binary=
         
         Also plots the confusion matrix as heatmap in an interactive environment such as Jupyter Notebook.
     '''
-    
-    predicted_labels = predicted_labels[true_labels.notnull()]
-    true_labels = true_labels[true_labels.notnull()]
+    if "NN" not in cm_title:
+        predicted_labels = predicted_labels[true_labels.notnull()]
+        true_labels = true_labels[true_labels.notnull()]
     
     # Calculate confusion matrix
     confusion = confusion_matrix(true_labels, predicted_labels)
@@ -125,7 +125,7 @@ def plot_ConfusionMatrix(predicted_labels, true_labels, num_classes = 5, binary=
                 yticklabels=[str(i+1) for i in range(num_classes - 1)])
     plt.xlabel('Predicted IPC scores')
     plt.ylabel('True IPC scores')
-    plt.title('Confusion Matrix - NN model')
+    plt.title(f'Confusion Matrix - {cm_title}')
     plt.show()
 
 def create_news_features(columns, news_df):
@@ -140,7 +140,7 @@ def create_news_features(columns, news_df):
 
 def articles_per_ipc(y, data_dir = "data/"):
 
-    news_df = pd.read_csv(data_dir + "df_news_districted.csv") # Read news data into DataFrame
+    news_df = pd.read_csv(data_dir + "df_news_districted_improved.csv") # Read news data into DataFrame
 
     # Create date column
     news_df["date"] = pd.to_datetime(
@@ -166,7 +166,7 @@ def articles_per_ipc(y, data_dir = "data/"):
 
 def articles_per_region(data_dir = "data/"):
 
-    df_news = pd.read_csv("data/articles_topics_original.csv", parse_dates=["date"])
+    df_news = pd.read_csv("data/articles_topics_template.csv", parse_dates=["date"])
     df_food_crisis = pd.read_csv("data/food_crises_cleaned.csv", parse_dates=['date'])
 
     districts = list(region for region in df_food_crisis["district"].unique())
