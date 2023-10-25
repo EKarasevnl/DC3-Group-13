@@ -3,7 +3,9 @@
 There are 3 .py files, 1 jupyter notebook and the necessary data (`data/all_africa_southsudan.csv`, `data/articles_summary_cleaned.csv`, `data/food_crises_cleaned.csv`) to execute the analysis.
 
 `helper_functions.py` - contains functions for repeated subroutines and generation of graphs sections 2 and 3 of the jupyter notebook
+
 `preprocessing.py` - contains functions to generate template (features = "Standard") and the improved dataset (features = "Improved") for IPC prediction
+
 `engine.py` - contains the function to train, test and evaluate the models (model_type = "OLS"/"Ridge"/"XGboost"/"NN")
 
 In order to run the analysis, first make sure that all the libraries in `requirements.txt` are installed, and then execute `src.ipynb`.
