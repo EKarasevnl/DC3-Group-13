@@ -10,16 +10,24 @@ from bertopic import BERTopic
 import statsmodels.api as sm
 
 def article_mapping(data_dir = "data/"):
+    ''' Function to generate `data/df_news_districted_improved.csv` with article mapped to regions
+    
+    Inputs:
+        data_dir - path to a directory with data
+    Output:
+        None.'''
+    
     df_news = pd.read_csv(data_dir + "articles_topics_improved.csv", parse_dates=["date"])
     df_food_crisis = pd.read_csv(data_dir + "food_crises_cleaned.csv", parse_dates=['date'])
 
+    # Extract all the region names from food crisis dataset and group them
     districts = list(region for region in df_food_crisis["district"].unique())
     for i in range(len(districts)):
         districts[i] = districts[i].replace("Center", "").replace("South", "").replace("North", "").replace("East", "").replace("West", "").strip()
     districts = list(dict.fromkeys(districts))
 
+    # Create an empty column 'district'
     df_news = df_news.drop(columns=['summary', 'lat', 'lng'])
-
     df_news['district'] = np.nan
     df_news['district'] = df_news['district'].astype('object')
 
@@ -40,17 +48,27 @@ def article_mapping(data_dir = "data/"):
                 matched_rows.append(matched_row)
                 matched = True
 
+        # If no region(s) matched, assign the article to all the regions
         if not matched:
             for district in districts:
-                no_match_row = df_news.iloc[i].copy()  # Create a copy of the original row
+                no_match_row = df_news.iloc[i].copy()  # Create a copy of the matching row
                 no_match_row.iloc[-1] = district
                 matched_rows.append(no_match_row)
 
-
+    # Convert matched_rows list into dataframe
     df_news_districted = pd.DataFrame(matched_rows, columns = df_news.columns).reset_index(drop=True)
     df_news_districted.to_csv(data_dir + "df_news_districted_improved.csv")
 
 def prepare_articles_features(data_dir, features):
+
+    ''' Function to generate `data/articles_topics_improved.csv` and `data/df_news_districted_improved.csv` 
+        with updated topics and article mapped to regions.
+    
+    Inputs:
+        data_dir - path to a directory with data
+        features - "Standard"/"Improved" to identify which dataset to generate: template or a new one.
+    Output:
+        None.'''
 
     # Read the data and perform preprocessing
     df = pd.read_csv(data_dir + "articles_summary_cleaned.csv", parse_dates=["date"]) # Read data into 'df' dataframe
@@ -122,13 +140,22 @@ def prepare_articles_features(data_dir, features):
 
         df.to_csv(data_dir + "articles_topics_improved.csv", index=False) # Save DataFrame to articles_topics.csv
 
+        # Assign articles to regions if dataset with mapped regions doesn't exist
         if not os.path.exists(data_dir + "df_news_districted_improved.csv"):
             article_mapping(data_dir)
 
 
 
 def prepare_dataset(data_dir = "data/", features = "Standard"):
-
+    ''' Function to generate train and test dataset for model training
+    
+    Inputs:
+        data_dir - path to a directory with data
+        features - "Standard"/"Improved" to identify which dataset to generate: template or a new one.
+    Output:
+        X - dataframe with predictor variables
+        y - dataframe with ipc scores.'''
+    
     df = pd.read_csv(data_dir + "food_crises_cleaned.csv") # Read data into DataFrame
     df["date"] = pd.to_datetime(df["year_month"], format="%Y_%m") # Create date column
     df.set_index(["date", "district"], inplace=True) # Set index
@@ -137,7 +164,6 @@ def prepare_dataset(data_dir = "data/", features = "Standard"):
     if features == "Standard":
 
         # Create several lagged columns to use as explanatory variables for the model
-
         df = create_lag_df(df, ['count_violence', 'ndvi_anom'], 3, rolling=6) # 3-month-lagged rolling mean window of size 6
         df = create_lag_df(df, ['food_price_idx'], 3, difference=True, rolling=6) # difference of the 3-month-lagged rolling mean window of size 6
         df = create_lag_df(df, ['ipc'], 1, dropna=True) # 1-month-lag
@@ -207,6 +233,7 @@ def prepare_dataset(data_dir = "data/", features = "Standard"):
         X = sm.add_constant(X) # Add constant column of 1s for intercept
         y = df[["ipc"]] # Define target data
 
+        # Remove rows with null values for 'ipc_lag_1'
         y = y[X['ipc_lag_1'].notnull()]
         X = X[X['ipc_lag_1'].notnull()]
 

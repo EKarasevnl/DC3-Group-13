@@ -14,13 +14,26 @@ from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
 from typing import List
 import seaborn as sns
-from torch.utils.data import DataLoader, TensorDataset, ConcatDataset
+from torch.utils.data import DataLoader, TensorDataset
 from tqdm.notebook import tqdm_notebook
 
 # Custom imports
 from helper_functions import plot_ConfusionMatrix
 
 def model_eval(X, y, model_type = "OLS"):
+    ''' Function to train and evaluate a given model
+    
+    Inputs:
+        X - dataframe with predictor variables
+        y - dataframe with ipc scores
+        model_type - "OLS"/"Ridge"/"XGboost"/"NN" choice of the model to evaluate
+    Output:
+        model - model trained on X and y
+        if "NN" is selected:
+            true_labels - true IPC labels for test dataset
+            predicted_probabilities - confidence for all IPC scores prediction for each data point
+            predicted_labels - the label predicted by NN.'''
+    
     if model_type == "OLS":
         cv = TimeSeriesSplit(n_splits=5) # Define TimeSeriesSplit with 5 splits
 
@@ -84,7 +97,7 @@ def model_eval(X, y, model_type = "OLS"):
 
         cv = TimeSeriesSplit(n_splits=5) # Define TimeSeriesSplit with 5 splits
 
-        # Initinalize empty lists to score scores
+        # Initinalize empty lists to store scores
         mae_values = list()
         r2_values = list()
         accuracy_values = list()
@@ -136,7 +149,7 @@ def model_eval(X, y, model_type = "OLS"):
     elif model_type == "XGboost":
 
         cv = TimeSeriesSplit(n_splits=5) # Define TimeSeriesSplit with 5 splits
-        # Initinalize empty lists to score scores
+        # Initinalize empty lists to store scores
         mae_values = list()
         f1_values = list()
         accuracy_values = list()
@@ -190,6 +203,7 @@ def model_eval(X, y, model_type = "OLS"):
 
     elif model_type == "NN":
 
+        # Removes rows with null values for the latest lag there is
         if "ipc_lag_3" in X.columns:
             y = y[X['ipc_lag_3'].notnull()]
             X = X[X['ipc_lag_3'].notnull()]
@@ -199,7 +213,7 @@ def model_eval(X, y, model_type = "OLS"):
 
         X_train, X_test, y_train, y_test = train_test_split(X,y, test_size=0.2, random_state=69)
         
-        # Normalize your data (optional, but recommended)
+        # Normalize your data
         scaler = StandardScaler()
         X_train_model = scaler.fit_transform(X_train.values)
         X_test_model = scaler.transform(X_test.values)
@@ -220,7 +234,7 @@ def model_eval(X, y, model_type = "OLS"):
         test_dataset = TensorDataset(X_test_model, y_test_model)
         test_loader = DataLoader(test_dataset, batch_size=64)
 
-        
+        # NN architecture
         class HungerModel(nn.Module):
             def __init__(self, input_size, num_classes):
                 super(HungerModel, self).__init__()
@@ -254,6 +268,7 @@ def model_eval(X, y, model_type = "OLS"):
         for epoch in tqdm_notebook(range(num_epochs), desc="Model Training"):
             model.train()
 
+            # Save the model before training
             if best_loss == 10000:
                 torch.save(model.state_dict(), 'best_model.pth')
 
@@ -270,6 +285,7 @@ def model_eval(X, y, model_type = "OLS"):
                 optimizer.step()
             mean_losses_train.append(sum(curr_losses_train) / len(curr_losses_train))
 
+            # Evaluation on the test data
             with torch.no_grad():
                 for batch in test_loader:
                     inputs, labels = batch
@@ -278,10 +294,8 @@ def model_eval(X, y, model_type = "OLS"):
                     test_loss = criterion(outputs, labels)
                     curr_losses_test.append(test_loss.item())
                 mean_losses_test.append(sum(curr_losses_test) / len(curr_losses_test))
-            # Print training loss for each epoch
-            
 
-
+            # Save the model if the current test loss is better than the previous best
             if mean_losses_test[-1] < best_loss:
                 best_loss = mean_losses_test[-1]
                 # Save the model checkpoint
@@ -312,13 +326,6 @@ def model_eval(X, y, model_type = "OLS"):
         true_labels = []
         predicted_labels = []
         predicted_probabilities = []  # Added for MSE and MAE
-
-        combined_dataset = ConcatDataset([
-            TensorDataset(X_train_model, y_train_model),
-            TensorDataset(X_test_model, y_test_model)
-        ])
-
-        combined_loader = DataLoader(combined_dataset, batch_size=64, shuffle=False)
 
         with torch.no_grad():
             for batch in test_loader:

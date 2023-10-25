@@ -3,3 +3,4 @@ data/articles_topics_improved.csv
 data/articles_topics_template.csv
 southsudan_model
 data/df_news_districted_improved.csv
+best_model.pth

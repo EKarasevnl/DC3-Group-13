@@ -36,8 +36,7 @@ def get_relevant_topics(bertopic_model, keywords, top_n):
         top_n: an integer indicating the number of desired relevant topics to be retrieved
         
         
-        Return: a list of the top_n (or less) topics most relevant to the (list of) provided keyword(s)
-    '''
+        Return: a list of the top_n (or less) topics most relevant to the (list of) provided keyword(s).'''
     
     if type(keywords) is str: keywords = [keywords] # If a single string is provided convert it to list type
     
@@ -81,8 +80,7 @@ def create_lag_df(df, columns, lag, difference=False, rolling=None, dropna=False
         dropna - Whether to drop NaN values
         
     Output:
-        df - Dataframe with the lagged columns added
-    '''
+        df - Dataframe with the lagged columns added.'''
     
     for column in columns:
         col = df[column].unstack()
@@ -96,20 +94,19 @@ def create_lag_df(df, columns, lag, difference=False, rolling=None, dropna=False
     return df
 
 
-def plot_ConfusionMatrix(predicted_labels, true_labels, cm_title, num_classes = 5, binary=False):
+def plot_ConfusionMatrix(predicted_labels, true_labels, cm_title, num_classes = 5):
     '''
     Function to plot a confusion matrix as a heatmap from a prediction and true values.
     
     Inputs:
-        prediction - The predicted values
-        true - the true values
-        binary - whether the variable is binary or not
+        predicted_labels - The predicted values
+        true_labels - the true values
+        cm_title - title of the confusion matrix
+        num_classes - the number of classes
         
     Output:
-        confusion_matrix - The calculated confusion matrix based on the prediction and true values.
-        
-        Also plots the confusion matrix as heatmap in an interactive environment such as Jupyter Notebook.
-    '''
+        None.'''
+    
     if "NN" not in cm_title:
         predicted_labels = predicted_labels[true_labels.notnull()]
         true_labels = true_labels[true_labels.notnull()]
@@ -120,7 +117,7 @@ def plot_ConfusionMatrix(predicted_labels, true_labels, cm_title, num_classes = 
     
     # Create a confusion matrix heatmap
     plt.figure(figsize=(8, 6))
-    sns.set(font_scale=1.2)  # Adjust font size if needed
+    sns.set(font_scale=1.2)
     sns.heatmap(confusion, annot=True, fmt='d', cmap='Blues', cbar=False, square=True,
                 xticklabels=[str(i+1) for i in range(num_classes - 1)],
                 yticklabels=[str(i+1) for i in range(num_classes - 1)])
@@ -130,6 +127,14 @@ def plot_ConfusionMatrix(predicted_labels, true_labels, cm_title, num_classes = 
     plt.show()
 
 def create_news_features(columns, news_df):
+    ''' Function to generate news articles features from article topics
+    
+    Inputs:
+        columns - names of article topics
+        news_df - dataframe of article topics
+    Output:
+        dataframe of news articles features.'''
+    
     cols = []
     for column in columns:
         col = news_df.groupby(["date"])[column].mean()
@@ -140,6 +145,12 @@ def create_news_features(columns, news_df):
     return pd.concat(cols, axis=1)
 
 def articles_per_ipc(y, data_dir = "data/"):
+    ''' Function to generate a graph with frequency of topics per ipc
+    Inputs:
+        y - dataframe of ipc values
+        data_dir - path to a directory with data
+    Output:
+        None.'''
 
     news_df = pd.read_csv(data_dir + "df_news_districted_improved.csv") # Read news data into DataFrame
 
@@ -149,6 +160,8 @@ def articles_per_ipc(y, data_dir = "data/"):
         format="%Y-%m",
     )
     news_df = news_df.drop(columns=['Unnamed: 0'])
+
+    # Create dataframe with frequency of IPC scores per date
     combined = ( pd.DataFrame(y['ipc'])
     .join(news_df.groupby(["date"])["hunger"].mean())
     .join(news_df.groupby(["date"])["refugees"].mean())
@@ -166,18 +179,30 @@ def articles_per_ipc(y, data_dir = "data/"):
     );
 
 def articles_per_region(data_dir = "data/"):
+    ''' Function to generate a pie chart with distribution of articles per regions
+    
+    Inputs:
+        data_dir - path to a directory with data
+    Output:
+        None.'''
 
     df_news = pd.read_csv("data/articles_topics_template.csv", parse_dates=["date"])
     df_food_crisis = pd.read_csv("data/food_crises_cleaned.csv", parse_dates=['date'])
 
+    # Extract all the region names from food crisis dataset and group them
     districts = list(region for region in df_food_crisis["district"].unique())
     for i in range(len(districts)):
         districts[i] = districts[i].replace("Center", "").replace("South", "").replace("North", "").replace("East", "").replace("West", "").strip()
     districts = list(dict.fromkeys(districts))
+
+    # Create an empty column 'district'
     df_news = df_news.drop(columns=['summary', 'lat', 'lng'])
     df_news['district'] = np.nan
     df_news['district'] = df_news['district'].astype('object')
+
+    # Initialize a dataframe for articles with regional mapping
     df_news_districted = pd.DataFrame(columns=df_news.columns)
+
     # Initialize an empty list to collect rows
     matched_rows = []
 
@@ -185,7 +210,8 @@ def articles_per_region(data_dir = "data/"):
     for i in tqdm(range(len(df_news)), desc="Preparing data for the Pie Chart"):
         text = df_news.iloc[i, 1].lower()
         matched = False
-
+        
+        # If district is matched to "article_location", assign the article to the region
         for district in districts:
             if (district.lower() in text) or (text in district.lower()):
                 matched_row = df_news.iloc[i].copy()  # Create a copy of the matching row
@@ -193,36 +219,27 @@ def articles_per_region(data_dir = "data/"):
                 matched_rows.append(matched_row)
                 matched = True
 
+        # If not assigned to region(s), label as "Not assigned"
         if not matched:
-            no_match_row = df_news.iloc[i].copy()  # Create a copy of the original row
+            no_match_row = df_news.iloc[i].copy()  # Create a copy of the matching row
             no_match_row.iloc[-1] = "Not assigned"
             matched_rows.append(no_match_row)
 
 
-
+    # Convert matched_rows list into a dataframe
     df_news_districted = pd.DataFrame(matched_rows, columns = df_news.columns).reset_index(drop=True)
     monthly_avg_art = df_news_districted[['district']].groupby(['district']).size().reset_index(name='count').sort_values(by='count', ascending=False).iloc[0:10,]
 
     # Set the threshold for grouping into "other"
-    threshold = sum(monthly_avg_art['count']/ 100*2.3)  # Less than 2% will be grouped into "other"
+    threshold = sum(monthly_avg_art['count']/ 100*2.3)  # Less than 2.3% will be grouped into "other"
 
-    # Identify the groups to group into "other"
-    small_groups = monthly_avg_art[monthly_avg_art['count'] < threshold]
-    small_groups_total = small_groups['count'].sum()
-
-    # Combine small groups into "other"
+    # Combine small groups into "Other regions" and aggregate per district
     monthly_avg_art.loc[monthly_avg_art['count'] < threshold, 'district'] = 'Other regions'
-    # monthly_avg_art.loc[monthly_avg_art['district'] == 'Other', 'count'] += small_groups_total
-
     monthly_avg_art = monthly_avg_art.groupby(['district']).sum()
 
-    # Create a pie chart using Seaborn
+    # Create a pie chart
     plt.figure(figsize=(6, 6))
     sns.set_palette('Set3')
-
-
-    # Plot the pie chart
     plt.pie(monthly_avg_art['count'], labels=monthly_avg_art.index, autopct='%1.1f%%', startangle=140, textprops={'fontsize': 12})
     plt.title('Distribution of News Articles', fontsize=16, fontweight='bold')
-
     plt.show()
