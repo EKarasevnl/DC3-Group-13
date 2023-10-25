@@ -43,7 +43,6 @@ def model_eval(X, y, model_type = "OLS"):
             # Define X and y data
             X_train, X_test = X.iloc[train_index], X.iloc[val_index]
             y_train, y_val = y.iloc[train_index], y.iloc[val_index]
-            print(len(y_val))
 
             # If X_train doesn't contain any news features (this happens for earlier dates) we drop news columns from both X_train and X_test
             X_train = X_train.dropna(axis=1, how='all').copy()
@@ -199,7 +198,6 @@ def model_eval(X, y, model_type = "OLS"):
             X = X[X['ipc_lag_1'].notnull()]     
 
         X_train, X_test, y_train, y_test = train_test_split(X,y, test_size=0.2, random_state=69)
-        print(len(y_test))
         
         # Normalize your data (optional, but recommended)
         scaler = StandardScaler()
