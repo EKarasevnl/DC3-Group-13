@@ -8,7 +8,7 @@ There are 3 .py files, 1 jupyter notebook and the necessary data (`data/all_afri
 
 `engine.py` - contains the function to train, test and evaluate the models (model_type = "OLS"/"Ridge"/"XGboost"/"NN")
 
-In order to run the analysis, first make sure that all the libraries in `requirements.txt` are installed, `DC3-Group-13` is selected as CWD, and then execute `src.ipynb`.
+In order to run the analysis, first make sure that all the libraries in `requirements.txt` are installed, `DC3-Group-13-main` is selected as CWD, and then execute `src.ipynb`.
 
 ## Requirements
 To install the requirements open Terminal (macOS)/Command Prompt (Windows) and run `pip install -r requirements.txt`. If you create a new environment in PyCharm, an icon should appear to install requirements. The code runs with Python 3.10.12.
