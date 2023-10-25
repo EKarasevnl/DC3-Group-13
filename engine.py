@@ -1,3 +1,4 @@
+# Standard imports
 from sklearn.model_selection import TimeSeriesSplit
 import numpy as np
 from statsmodels.regression.linear_model import OLS
@@ -8,7 +9,6 @@ import xgboost as xgb
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
@@ -16,9 +16,8 @@ from typing import List
 import seaborn as sns
 from torch.utils.data import DataLoader, TensorDataset, ConcatDataset
 from tqdm.notebook import tqdm_notebook
-from sklearn.metrics import confusion_matrix
 
-
+# Custom imports
 from helper_functions import plot_ConfusionMatrix
 
 def model_eval(X, y, model_type = "OLS"):
@@ -44,6 +43,7 @@ def model_eval(X, y, model_type = "OLS"):
             # Define X and y data
             X_train, X_test = X.iloc[train_index], X.iloc[val_index]
             y_train, y_val = y.iloc[train_index], y.iloc[val_index]
+            print(len(y_val))
 
             # If X_train doesn't contain any news features (this happens for earlier dates) we drop news columns from both X_train and X_test
             X_train = X_train.dropna(axis=1, how='all').copy()
@@ -199,7 +199,8 @@ def model_eval(X, y, model_type = "OLS"):
             X = X[X['ipc_lag_1'].notnull()]     
 
         X_train, X_test, y_train, y_test = train_test_split(X,y, test_size=0.2, random_state=69)
-
+        print(len(y_test))
+        
         # Normalize your data (optional, but recommended)
         scaler = StandardScaler()
         X_train_model = scaler.fit_transform(X_train.values)
